@@ -1,4 +1,5 @@
-# Ignore all files in this directory
+# Ignore all files in this directory except the trained model and metrics
 *
-# Except this file
 !.gitignore
+!model.joblib
+!metrics.json

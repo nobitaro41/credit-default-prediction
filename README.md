@@ -1,3 +1,15 @@
+---
+title: Credit Default Prediction
+emoji: 💳
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: 1.32.0
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # 💳 Credit Default Prediction — End-to-End Production ML System
 
 [![CI](https://github.com/nobitaro41/credit-default-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/nobitaro41/credit-default-prediction/actions)

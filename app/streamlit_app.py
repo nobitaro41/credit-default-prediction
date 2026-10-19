@@ -235,21 +235,39 @@ def render_sidebar() -> dict[str, Any]:
     }
 
 
+@st.cache_resource
+def get_local_predictor():
+    """Fallback local model predictor when FastAPI backend is not running (e.g. Hugging Face Spaces)."""
+    try:
+        from src.models.predict import Predictor
+        return Predictor.from_disk(model_path="models/model.joblib", metrics_path="models/metrics.json")
+    except Exception:
+        return None
+
+
+@st.cache_resource
+def get_local_explainer():
+    """Fallback local SHAP explainer when FastAPI backend is not running."""
+    try:
+        from src.models.explain import Explainer
+        predictor = get_local_predictor()
+        if predictor is not None:
+            return Explainer(predictor.model)
+        return None
+    except Exception:
+        return None
+
+
 def call_predict_api(api_url: str, inputs: dict[str, Any], threshold: float) -> dict[str, Any] | None:
-    """Call the FastAPI /predict endpoint."""
+    """Call the FastAPI /predict endpoint, with seamless local fallback."""
     # Prepare payload - convert to the exact field names the API expects
-    # The API expects camelCase aliases matching the dataset column names
     payload = {}
     for feat in FEATURE_CONFIG:
         name = feat["name"]
         val = inputs.get(name)
         if val is not None:
-            # Map python snake_case to the API's alias (the raw column name)
-            # The API uses aliases like "RevolvingUtilizationOfUnsecuredLines"
-            alias = feat["name"]  # This is already the raw column name
-            payload[alias] = val
+            payload[feat["name"]] = val
         elif feat.get("optional", False):
-            # Optional fields can be omitted or set to null
             payload[feat["name"]] = None
 
     try:
@@ -262,6 +280,18 @@ def call_predict_api(api_url: str, inputs: dict[str, Any], threshold: float) -> 
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError:
+        predictor = get_local_predictor()
+        if predictor is not None:
+            df = pd.DataFrame([payload])
+            proba = float(predictor.predict_proba(df)[0])
+            pred = int(proba >= threshold)
+            st.toast("⚡ Running in standalone mode with embedded model")
+            return {
+                "default_probability": proba,
+                "prediction": pred,
+                "threshold": threshold,
+                "risk_level": "high" if pred else "low",
+            }
         st.error(f"❌ Cannot connect to API at `{api_url}`. Make sure the FastAPI server is running.")
         st.info("Run `make serve` in another terminal to start the API server.")
         return None
@@ -277,7 +307,7 @@ def call_predict_api(api_url: str, inputs: dict[str, Any], threshold: float) -> 
 
 
 def call_explain_api(api_url: str, inputs: dict[str, Any]) -> dict[str, Any] | None:
-    """Call the FastAPI /explain endpoint for SHAP values."""
+    """Call the FastAPI /explain endpoint for SHAP values, with local fallback."""
     payload = {}
     for feat in FEATURE_CONFIG:
         name = feat["name"]
@@ -296,6 +326,19 @@ def call_explain_api(api_url: str, inputs: dict[str, Any]) -> dict[str, Any] | N
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError:
+        explainer = get_local_explainer()
+        predictor = get_local_predictor()
+        if explainer is not None and predictor is not None:
+            df = pd.DataFrame([payload])
+            explanation = explainer.explain_row(df)
+            return {
+                "default_probability": float(predictor.predict_proba(df)[0]),
+                "base_value": explanation.base_value,
+                "features": [
+                    {"feature": c.feature, "shap_value": c.value}
+                    for c in explanation.contributions
+                ],
+            }
         return None
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 501:
@@ -478,6 +521,77 @@ def check_api_health(api_url: str) -> dict[str, Any] | None:
         return None
 
 
+def get_service_status(api_url: str) -> dict[str, Any] | None:
+    """Check API health, falling back to local model metadata if standalone."""
+    health = check_api_health(api_url)
+    if health is not None:
+        return health
+    predictor = get_local_predictor()
+    if predictor is not None:
+        return {
+            "status": "healthy (standalone)",
+            "estimator": type(predictor.model).__name__,
+            "threshold": predictor.threshold,
+            "n_features": len(getattr(predictor.model, "feature_names_in_", [])) or 10,
+        }
+    return None
+
+
+def render_sample_profiles() -> None:
+    """Render sample borrower profile buttons and pre-fill input form on click."""
+    st.subheader("📝 Try Sample Profiles")
+    st.caption("Click a button below to fill the form with a sample borrower profile.")
+
+    sample_profiles = {
+        "Low Risk": {
+            "RevolvingUtilizationOfUnsecuredLines": 0.15,
+            "age": 45,
+            "NumberOfTime30-59DaysPastDueNotWorse": 0,
+            "DebtRatio": 0.2,
+            "MonthlyIncome": 8000,
+            "NumberOfOpenCreditLinesAndLoans": 3,
+            "NumberOfTimes90DaysLate": 0,
+            "NumberRealEstateLoansOrLines": 1,
+            "NumberOfTime60-89DaysPastDueNotWorse": 0,
+            "NumberOfDependents": 1.0,
+        },
+        "Medium Risk": {
+            "RevolvingUtilizationOfUnsecuredLines": 0.65,
+            "age": 35,
+            "NumberOfTime30-59DaysPastDueNotWorse": 1,
+            "DebtRatio": 0.45,
+            "MonthlyIncome": 3500,
+            "NumberOfOpenCreditLinesAndLoans": 8,
+            "NumberOfTimes90DaysLate": 0,
+            "NumberRealEstateLoansOrLines": 0,
+            "NumberOfTime60-89DaysPastDueNotWorse": 0,
+            "NumberOfDependents": 2.0,
+        },
+        "High Risk": {
+            "RevolvingUtilizationOfUnsecuredLines": 1.2,
+            "age": 28,
+            "NumberOfTime30-59DaysPastDueNotWorse": 3,
+            "DebtRatio": 0.85,
+            "MonthlyIncome": 2000,
+            "NumberOfOpenCreditLinesAndLoans": 12,
+            "NumberOfTimes90DaysLate": 2,
+            "NumberRealEstateLoansOrLines": 0,
+            "NumberOfTime60-89DaysPastDueNotWorse": 1,
+            "NumberOfDependents": 3.0,
+        },
+    }
+
+    cols = st.columns(len(sample_profiles))
+    for idx, (profile_name, profile_data) in enumerate(sample_profiles.items()):
+        with cols[idx]:
+            if st.button(profile_name, use_container_width=True, key=f"sample_{profile_name}"):
+                for feat in FEATURE_CONFIG:
+                    name = feat["name"]
+                    if name in profile_data:
+                        st.session_state[name] = profile_data[name]
+                st.rerun()
+
+
 def main():
     """Main Streamlit application."""
     # Custom CSS for better styling
@@ -513,14 +627,7 @@ def main():
     # Check API health on startup
     sidebar_data = render_sidebar()
     api_url = sidebar_data["api_url"]
-
-    # Health check indicator
-    health = check_api_health(api_url)
-    if health:
-        st.sidebar.success(f"✅ API Connected ({health.get('estimator', 'Unknown')})")
-    else:
-        st.sidebar.error("❌ API Not Connected")
-        st.sidebar.caption(f"Trying: {api_url}")
+    health = get_service_status(api_url)
 
     # Main content area
     if sidebar_data["predict_button"]:
@@ -564,58 +671,7 @@ def main():
                 col3.metric("Features", health.get("n_features", "Unknown"))
 
         # Sample borrower profiles
-        st.subheader("📝 Try Sample Profiles")
-        st.caption("Click a button below to fill the form with a sample borrower profile.")
-
-        sample_profiles = {
-            "Low Risk": {
-                "RevolvingUtilizationOfUnsecuredLines": 0.15,
-                "age": 45,
-                "NumberOfTime30-59DaysPastDueNotWorse": 0,
-                "DebtRatio": 0.2,
-                "MonthlyIncome": 8000,
-                "NumberOfOpenCreditLinesAndLoans": 3,
-                "NumberOfTimes90DaysLate": 0,
-                "NumberRealEstateLoansOrLines": 1,
-                "NumberOfTime60-89DaysPastDueNotWorse": 0,
-                "NumberOfDependents": 1.0,
-            },
-            "Medium Risk": {
-                "RevolvingUtilizationOfUnsecuredLines": 0.65,
-                "age": 35,
-                "NumberOfTime30-59DaysPastDueNotWorse": 1,
-                "DebtRatio": 0.45,
-                "MonthlyIncome": 3500,
-                "NumberOfOpenCreditLinesAndLoans": 8,
-                "NumberOfTimes90DaysLate": 0,
-                "NumberRealEstateLoansOrLines": 0,
-                "NumberOfTime60-89DaysPastDueNotWorse": 0,
-                "NumberOfDependents": 2.0,
-            },
-            "High Risk": {
-                "RevolvingUtilizationOfUnsecuredLines": 1.2,
-                "age": 28,
-                "NumberOfTime30-59DaysPastDueNotWorse": 3,
-                "DebtRatio": 0.85,
-                "MonthlyIncome": 2000,
-                "NumberOfOpenCreditLinesAndLoans": 12,
-                "NumberOfTimes90DaysLate": 2,
-                "NumberRealEstateLoansOrLines": 0,
-                "NumberOfTime60-89DaysPastDueNotWorse": 1,
-                "NumberOfDependents": 3.0,
-            },
-        }
-
-        cols = st.columns(len(sample_profiles))
-        for idx, (profile_name, profile_data) in enumerate(sample_profiles.items()):
-            with cols[idx]:
-                if st.button(profile_name, use_container_width=True, key=f"sample_{profile_name}"):
-                    # Store in session state to pre-fill the form
-                    for feat in FEATURE_CONFIG:
-                        name = feat["name"]
-                        if name in profile_data:
-                            st.session_state[name] = profile_data[name]
-                    st.rerun()
+        render_sample_profiles()
 
         # Footer
         st.divider()
