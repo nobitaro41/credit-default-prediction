@@ -151,48 +151,17 @@ def render_sidebar() -> dict[str, Any]:
         fmt = feat["format"]
         is_optional = feat.get("optional", False)
 
+        # Ensure session state value has matching type if present
+        if name in st.session_state and st.session_state[name] is not None:
+            if isinstance(default, float) and not isinstance(st.session_state[name], float):
+                st.session_state[name] = float(st.session_state[name])
+            elif isinstance(default, int) and not isinstance(st.session_state[name], int):
+                st.session_state[name] = int(st.session_state[name])
+
         if is_optional:
             # For optional fields, use a checkbox to enable/disable
             enabled = st.sidebar.checkbox(f"Provide {label}", value=True, key=f"enable_{name}")
             if enabled:
-                if isinstance(default, int) or (isinstance(default, float) and default == int(default)):
-                    val = st.sidebar.number_input(
-                        label,
-                        min_value=min_val,
-                        max_value=max_val,
-                        value=int(default),
-                        step=step,
-                        format=fmt,
-                        help=help_text,
-                        key=name,
-                    )
-                else:
-                    val = st.sidebar.number_input(
-                        label,
-                        min_value=min_val,
-                        max_value=max_val,
-                        value=default,
-                        step=step,
-                        format=fmt,
-                        help=help_text,
-                        key=name,
-                    )
-                inputs[name] = val
-            else:
-                inputs[name] = None
-        else:
-            if isinstance(default, int) or (isinstance(default, float) and default == int(default)):
-                val = st.sidebar.number_input(
-                    label,
-                    min_value=min_val,
-                    max_value=max_val,
-                    value=int(default),
-                    step=step,
-                    format=fmt,
-                    help=help_text,
-                    key=name,
-                )
-            else:
                 val = st.sidebar.number_input(
                     label,
                     min_value=min_val,
@@ -203,6 +172,20 @@ def render_sidebar() -> dict[str, Any]:
                     help=help_text,
                     key=name,
                 )
+                inputs[name] = val
+            else:
+                inputs[name] = None
+        else:
+            val = st.sidebar.number_input(
+                label,
+                min_value=min_val,
+                max_value=max_val,
+                value=default,
+                step=step,
+                format=fmt,
+                help=help_text,
+                key=name,
+            )
             inputs[name] = val
 
     st.sidebar.divider()
@@ -548,7 +531,7 @@ def render_sample_profiles() -> None:
             "age": 45,
             "NumberOfTime30-59DaysPastDueNotWorse": 0,
             "DebtRatio": 0.2,
-            "MonthlyIncome": 8000,
+            "MonthlyIncome": 8000.0,
             "NumberOfOpenCreditLinesAndLoans": 3,
             "NumberOfTimes90DaysLate": 0,
             "NumberRealEstateLoansOrLines": 1,
@@ -560,7 +543,7 @@ def render_sample_profiles() -> None:
             "age": 35,
             "NumberOfTime30-59DaysPastDueNotWorse": 1,
             "DebtRatio": 0.45,
-            "MonthlyIncome": 3500,
+            "MonthlyIncome": 3500.0,
             "NumberOfOpenCreditLinesAndLoans": 8,
             "NumberOfTimes90DaysLate": 0,
             "NumberRealEstateLoansOrLines": 0,
@@ -572,7 +555,7 @@ def render_sample_profiles() -> None:
             "age": 28,
             "NumberOfTime30-59DaysPastDueNotWorse": 3,
             "DebtRatio": 0.85,
-            "MonthlyIncome": 2000,
+            "MonthlyIncome": 2000.0,
             "NumberOfOpenCreditLinesAndLoans": 12,
             "NumberOfTimes90DaysLate": 2,
             "NumberRealEstateLoansOrLines": 0,
@@ -588,7 +571,14 @@ def render_sample_profiles() -> None:
                 for feat in FEATURE_CONFIG:
                     name = feat["name"]
                     if name in profile_data:
-                        st.session_state[name] = profile_data[name]
+                        val = profile_data[name]
+                        if isinstance(feat["default"], float):
+                            val = float(val)
+                        elif isinstance(feat["default"], int):
+                            val = int(val)
+                        st.session_state[name] = val
+                    if feat.get("optional", False):
+                        st.session_state[f"enable_{name}"] = True
                 st.rerun()
 
 
