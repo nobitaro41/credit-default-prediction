@@ -1,6 +1,6 @@
 # 💳 Credit Default Prediction — End-to-End Production ML System
 
-[![CI](https://github.com/dainguyenbao2006-cyber/credit-default-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/dainguyenbao2006-cyber/credit-default-prediction/actions)
+[![CI](https://github.com/nobitaro41/credit-default-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/nobitaro41/credit-default-prediction/actions)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -225,7 +225,7 @@ credit-default-prediction/
 ### 2. Local Setup
 ```bash
 # Clone the repository
-git clone https://github.com/dainguyenbao2006-cyber/credit-default-prediction.git
+git clone https://github.com/nobitaro41/credit-default-prediction.git
 cd credit-default-prediction
 
 # Install dependencies using uv
@@ -330,4 +330,4 @@ ruff check .
 
 ## 👤 Author
 - **Developer**: Dai Nguyen Bao ([dainguyenbao2006@gmail.com](mailto:dainguyenbao2006@gmail.com))
-- **GitHub**: [@dainguyenbao2006-cyber](https://github.com/dainguyenbao2006-cyber)
+- **GitHub**: [@nobitaro41](https://github.com/nobitaro41)
