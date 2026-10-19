@@ -1,0 +1,150 @@
+# Docker Compose for Credit Default Prediction
+# Runs backend (FastAPI), frontend (Streamlit), and MLflow tracking server
+version: "3.8"
+
+services:
+  # MLflow Tracking Server
+  mlflow:
+    image: python:3.11-slim
+    container_name: credit-mlflow
+    command: >
+      bash -c "pip install mlflow==2.9.0 psycopg2-binary &&
+               mlflow server --host 0.0.0.0 --port 5000
+               --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+               --default-artifact-root s3://mlflow/"
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      - postgres
+      - minio
+    networks:
+      - credit-network
+    restart: unless-stopped
+
+  # PostgreSQL for MLflow backend store
+  postgres:
+    image: postgres:15-alpine
+    container_name: credit-postgres
+    environment:
+      - POSTGRES_USER=mlflow
+      - POSTGRES_PASSWORD=mlflow
+      - POSTGRES_DB=mlflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - credit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow -d mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO for MLflow artifact storage (S3-compatible)
+  minio:
+    image: minio/minio:latest
+    container_name: credit-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    networks:
+      - credit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Create MinIO bucket for MLflow
+  minio-setup:
+    image: minio/mc:latest
+    container_name: credit-minio-setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc config host add minio http://minio:9000 minioadmin minioadmin) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc mb minio/mlflow --ignore-existing;
+      echo 'Bucket created successfully';
+      "
+    networks:
+      - credit-network
+
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: credit-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - CDP_MODEL_PATH=/app/models/model.joblib
+      - CDP_METRICS_PATH=/app/models/metrics.json
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+    volumes:
+      - ./models:/app/models:ro
+      - ./configs:/app/configs:ro
+    depends_on:
+      mlflow:
+        condition: service_started
+    networks:
+      - credit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Frontend (Streamlit)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: credit-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - CDP_API_URL=http://backend:8000
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./app:/app/app:ro
+      - ./src:/app/src:ro
+      - ./models:/app/models:ro
+      - ./configs:/app/configs:ro
+    depends_on:
+      - backend
+    networks:
+      - credit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+networks:
+  credit-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:

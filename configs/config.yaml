@@ -1,0 +1,87 @@
+# Configuration for Credit Default Prediction project
+# All hyperparameters, file paths, seeds, and business costs are centralized here.
+
+project:
+  name: "credit-default-prediction"
+  version: "0.1.0"
+  description: "Credit default prediction using supervised learning"
+
+# Global random seed for reproducibility
+seed: 42
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  train_filename: "cs-training.csv"
+  test_filename: "cs-test.csv"
+  target_column: "SeriousDlqin2yrs"
+  
+  # Data splitting parameters
+  split:
+    test_size: 0.15
+    val_size: 0.15
+    random_state: 42
+
+# Data cleaning and outlier capping thresholds (deterministic business caps)
+cleaning:
+  max_past_due: 90
+  min_age: 1
+  monthly_income_cap: 200000.0
+  debt_ratio_cap: 6000.0
+
+# Feature engineering configuration
+features:
+  missing_strategy: "median"
+  scaling: "standard"
+
+# Model hyperparameters and candidate registry
+models:
+  primary_metric: "pr_auc"
+  registry:
+    logistic_regression:
+      max_iter: 2000
+    random_forest:
+      n_estimators: 200
+      n_jobs: -1
+    xgboost:
+      n_estimators: 200
+      learning_rate: 0.1
+      n_jobs: -1
+    lightgbm:
+      n_estimators: 200
+      learning_rate: 0.1
+      n_jobs: -1
+      verbosity: -1
+
+# Optuna hyperparameter tuning configuration
+tuning:
+  n_trials: 30
+  cv_folds: 5
+  primary_metric: "pr_auc"
+
+# Business cost evaluation & decision threshold optimization
+evaluation:
+  fn_cost: 5.0   # Cost of missed defaulter (False Negative)
+  fp_cost: 1.0   # Cost of wrongly rejected customer (False Positive)
+  default_threshold: 0.20
+  summary_metrics:
+    - "roc_auc"
+    - "pr_auc"
+    - "f1"
+    - "recall"
+    - "precision"
+    - "accuracy"
+    - "brier"
+
+# Artifact storage locations
+artifacts:
+  model_path: "models/model.joblib"
+  metrics_path: "models/metrics.json"
+  predictions_path: "data/predictions/cs-test-predictions.csv"
+  figures_dir: "reports/figures"
+  model_card_path: "reports/model_card.md"
+
+# MLOps experiment tracking
+mlflow:
+  experiment_name: "credit-default-prediction"
+  tracking_uri: "http://localhost:5000"

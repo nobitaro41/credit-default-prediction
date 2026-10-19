@@ -1,0 +1,52 @@
+# DVC Pipeline: prepare -> train -> evaluate
+# Run pipeline: dvc repro
+# View DAG: dvc dag
+
+stages:
+  prepare:
+    cmd: python scripts/run_pipeline.py --stage prepare
+    deps:
+      - data/raw/cs-training.csv
+      - src/data/load.py
+      - src/data/clean.py
+      - src/data/split.py
+      - configs/config.yaml
+    outs:
+      - data/processed/train.csv
+      - data/processed/val.csv
+      - data/processed/test.csv
+
+  train:
+    cmd: python scripts/run_pipeline.py --stage train
+    deps:
+      - data/processed/train.csv
+      - data/processed/val.csv
+      - data/processed/test.csv
+      - src/features/build_features.py
+      - src/models/train.py
+      - src/models/evaluate.py
+      - configs/config.yaml
+    outs:
+      - models/model.joblib
+
+  evaluate:
+    cmd: python scripts/generate_figures.py
+    deps:
+      - models/model.joblib
+      - data/processed/test.csv
+      - scripts/generate_figures.py
+      - configs/config.yaml
+    metrics:
+      - models/metrics.json:
+          cache: false
+    plots:
+      - reports/figures/roc_curve.png:
+          cache: false
+      - reports/figures/pr_curve.png:
+          cache: false
+      - reports/figures/confusion_matrix.png:
+          cache: false
+      - reports/figures/calibration_curve.png:
+          cache: false
+      - reports/figures/shap_summary.png:
+          cache: false

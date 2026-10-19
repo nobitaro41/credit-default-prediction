@@ -1,0 +1,5 @@
+# Add patterns of files dvc should ignore
++/.git
++/.dvc
++/.venv
++/models/*.joblib

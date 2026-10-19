@@ -1,0 +1,122 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Data and models
+# Loại dữ liệu lớn, model, file tạm khỏi Git
+data/raw/*
+!data/raw/.gitignore
+data/processed/*
+!data/processed/.gitignore
+data/predictions/
+models/*
+!models/.gitignore
+!models/metrics.json
+*.joblib
+*.pkl
+*.h5
+*.pb
+logs/
+mlruns/
+mlflow.db
+mlflow.db.*
+dvc_remote/
+
+# Environment variables
+.env
+.env.*
+!env.example
+
+# DVC
+.dvc/
+/.dvc/cache
+/db.sqlite
+
+# Jupyter Notebook
+.ipynb_checkpoints
+__pycache__
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Cython debug symbols
+cython_debug
+
+# Cookiecutter
+#  https://cookiecutter.readthedocs.io/en/latest/readme.html
+cookiecutter-repo
+
+# Output of 'numpy test'
+#  These contents will be deleted with 'make realclean'
+#  (to be added by the numpy test makefile, see later in the file).
+__tmp__
+obj/
+__pycache__
+
+# Cache
+.cache
+
+# Pytest cache
+.pytest_cache
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre

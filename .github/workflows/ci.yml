@@ -1,0 +1,47 @@
+# CI: chạy lint + test mỗi lần push
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        pre-commit install
+
+    - name: Run linting
+      run: |
+        ruff check .
+        # Optional: run black check
+        # black --check .
+
+    - name: Run tests
+      run: |
+        pytest tests/ -v
+
+    - name: Build Docker image
+      run: |
+        docker build -t credit-default-prediction:latest .
+
+    - name: Test Docker container
+      run: |
+        docker run --rm credit-default-prediction:latest python -c "import src; print('Import successful')"

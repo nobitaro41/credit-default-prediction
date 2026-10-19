@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# DVC
+dvc_remote/
+.dvc/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data (large files)
+data/raw/*.csv
+data/processed/
+
+# Models (large files)
+models/*.joblib
+models/*.pkl
+
+# Reports
+reports/figures/*.png
+reports/figures/*.jpg
+
+# Notebooks
+notebooks/*.ipynb
+
+# CI/CD
+.github/
+
+# Documentation
+README.md
+CLAUDE.md
+
+# Lock files (handled by uv)
+uv.lock

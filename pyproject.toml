@@ -1,0 +1,74 @@
+[project]
+name = "credit-default-prediction"
+version = "0.1.0"
+description = "Credit default prediction using supervised learning"
+readme = "README.md"
+authors = [
+    { name = "dainguyenbao2006-cyber", email = "dainguyenbao2006@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "xgboost>=1.7.0",
+    "lightgbm>=4.0.0",
+    "optuna>=3.0.0",
+    "shap>=0.42.0",
+    "imbalanced-learn>=0.11.0",
+    "fastapi>=0.100.0",
+    "pydantic>=2.0.0",
+    "uvicorn>=0.27.0",
+    "streamlit>=1.30.0",
+    "mlflow>=2.5.0",
+    "dvc>=3.0.0",
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+    "jupyter>=1.1.1",
+    "ipykernel>=7.4.0",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.15.0",
+    "plotly>=7.1.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "jupyterlab>=4.0.0",
+    "notebook>=6.5.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "logs",
+    "mlruns",
+    "dvc_remote",
+    "notebooks",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I"]
+ignore = [
+    "E501",  # line length - we'll use black or keep reasonable length
+    "E203",  # whitespace before ':' - common false positive
+]
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+pythonpath = ["."]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v"
