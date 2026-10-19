@@ -9,12 +9,22 @@ This app provides an interactive UI to:
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+
+# Ensure repository root is on sys.path so that `import src...` works in all deployment environments
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+MODEL_PATH = ROOT_DIR / "models" / "model.joblib"
+METRICS_PATH = ROOT_DIR / "models" / "metrics.json"
 
 # Page configuration
 st.set_page_config(
@@ -220,11 +230,14 @@ def render_sidebar() -> dict[str, Any]:
 
 @st.cache_resource
 def get_local_predictor():
-    """Fallback local model predictor when FastAPI backend is not running (e.g. Hugging Face Spaces)."""
+    """Fallback local model predictor when FastAPI backend is not running (e.g. Streamlit Cloud, HF Spaces)."""
     try:
         from src.models.predict import Predictor
-        return Predictor.from_disk(model_path="models/model.joblib", metrics_path="models/metrics.json")
-    except Exception:
+        target_model = MODEL_PATH if MODEL_PATH.exists() else Path("models/model.joblib")
+        target_metrics = METRICS_PATH if METRICS_PATH.exists() else Path("models/metrics.json")
+        return Predictor.from_disk(model_path=target_model, metrics_path=target_metrics)
+    except Exception as e:
+        print(f"Failed to load local model: {e}", file=sys.stderr)
         return None
 
 
@@ -237,7 +250,8 @@ def get_local_explainer():
         if predictor is not None:
             return Explainer(predictor.model)
         return None
-    except Exception:
+    except Exception as e:
+        print(f"Failed to initialize local explainer: {e}", file=sys.stderr)
         return None
 
 
@@ -258,11 +272,11 @@ def call_predict_api(api_url: str, inputs: dict[str, Any], threshold: float) -> 
             f"{api_url}/predict",
             params={"threshold": threshold} if threshold != 0.5 else None,
             json=payload,
-            timeout=10,
+            timeout=2,
         )
         response.raise_for_status()
         return response.json()
-    except requests.exceptions.ConnectionError:
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         predictor = get_local_predictor()
         if predictor is not None:
             df = pd.DataFrame([payload])
@@ -277,9 +291,6 @@ def call_predict_api(api_url: str, inputs: dict[str, Any], threshold: float) -> 
             }
         st.error(f"❌ Cannot connect to API at `{api_url}`. Make sure the FastAPI server is running.")
         st.info("Run `make serve` in another terminal to start the API server.")
-        return None
-    except requests.exceptions.Timeout:
-        st.error("❌ Request timed out. The API took too long to respond.")
         return None
     except requests.exceptions.HTTPError as e:
         st.error(f"❌ API error: {e.response.status_code} - {e.response.text}")
@@ -304,11 +315,11 @@ def call_explain_api(api_url: str, inputs: dict[str, Any]) -> dict[str, Any] | N
         response = requests.post(
             f"{api_url}/explain",
             json=payload,
-            timeout=15,
+            timeout=5,
         )
         response.raise_for_status()
         return response.json()
-    except requests.exceptions.ConnectionError:
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         explainer = get_local_explainer()
         predictor = get_local_predictor()
         if explainer is not None and predictor is not None:
@@ -497,7 +508,7 @@ def render_feature_summary(inputs: dict[str, Any]) -> None:
 def check_api_health(api_url: str) -> dict[str, Any] | None:
     """Check if the API is healthy and return model info."""
     try:
-        response = requests.get(f"{api_url}/health", timeout=5)
+        response = requests.get(f"{api_url}/health", timeout=2)
         response.raise_for_status()
         return response.json()
     except Exception:
@@ -511,9 +522,14 @@ def get_service_status(api_url: str) -> dict[str, Any] | None:
         return health
     predictor = get_local_predictor()
     if predictor is not None:
+        estimator_name = (
+            type(predictor.model.named_steps["classifier"]).__name__
+            if hasattr(predictor.model, "named_steps") and "classifier" in predictor.model.named_steps
+            else type(predictor.model).__name__
+        )
         return {
             "status": "healthy (standalone)",
-            "estimator": type(predictor.model).__name__,
+            "estimator": estimator_name,
             "threshold": predictor.threshold,
             "n_features": len(getattr(predictor.model, "feature_names_in_", [])) or 10,
         }
@@ -618,6 +634,15 @@ def main():
     sidebar_data = render_sidebar()
     api_url = sidebar_data["api_url"]
     health = get_service_status(api_url)
+
+    # Show connection status in sidebar
+    if health:
+        if health.get("status") == "healthy (standalone)":
+            st.sidebar.info(f"⚡ Standalone Mode ({health.get('estimator', 'Model')})")
+        else:
+            st.sidebar.success(f"✅ API Connected ({health.get('estimator', 'Backend')})")
+    else:
+        st.sidebar.warning(f"⚠️ API disconnected & no local model found at `{MODEL_PATH}`")
 
     # Main content area
     if sidebar_data["predict_button"]:
